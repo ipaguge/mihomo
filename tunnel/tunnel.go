@@ -12,7 +12,6 @@ import (
 	"time"
 
 	N "github.com/metacubex/mihomo/common/net"
-	"github.com/metacubex/mihomo/component/loopback"
 	"github.com/metacubex/mihomo/component/nat"
 	P "github.com/metacubex/mihomo/component/process"
 	"github.com/metacubex/mihomo/component/resolver"
@@ -693,9 +692,6 @@ func shouldStopRetry(err error) bool {
 		return true
 	}
 	if errors.Is(err, resolver.ErrIPv6Disabled) {
-		return true
-	}
-	if errors.Is(err, loopback.ErrReject) {
 		return true
 	}
 	return false

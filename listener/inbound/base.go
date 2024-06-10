@@ -77,6 +77,7 @@ type BaseOption struct {
 	Port         int    `inbound:"port,omitempty"`
 	SpecialRules string `inbound:"rule,omitempty"`
 	SpecialProxy string `inbound:"proxy,omitempty"`
+	SendThrough  string `inbound:"sendThrough,omitempty"`
 }
 
 func (o BaseOption) Name() string {

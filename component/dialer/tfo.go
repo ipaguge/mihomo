@@ -9,8 +9,6 @@ import (
 	"github.com/metacubex/tfo-go"
 )
 
-var DisableTFO = false
-
 type tfoConn struct {
 	net.Conn
 	closed bool

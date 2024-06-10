@@ -36,7 +36,7 @@ func bind6(handle syscall.Handle, ifaceIdx int) error {
 	return err
 }
 
-func bindControl(ifaceIdx int, rAddrPort netip.AddrPort) controlFn {
+func bindControl(ifaceIdx int) controlFn {
 	return func(ctx context.Context, network, address string, c syscall.RawConn) (err error) {
 		addrPort, err := netip.ParseAddrPort(address)
 		if err == nil && !addrPort.Addr().IsGlobalUnicast() {
@@ -55,7 +55,7 @@ func bindControl(ifaceIdx int, rAddrPort netip.AddrPort) controlFn {
 				innerErr = bind4err
 			case "udp6":
 				// golang will set network to udp6 when listenUDP on wildcard ip (eg: ":0", "")
-				if (!addrPort.Addr().IsValid() || addrPort.Addr().IsUnspecified()) && bind6err != nil && rAddrPort.Addr().Unmap().Is4() {
+				if (!addrPort.Addr().IsValid() || addrPort.Addr().IsUnspecified()) && bind6err != nil {
 					// try bind ipv6, if failed, ignore. it's a workaround for windows disable interface ipv6
 					if bind4err != nil {
 						innerErr = fmt.Errorf("%w (%s)", bind6err, bind4err)
@@ -76,23 +76,23 @@ func bindControl(ifaceIdx int, rAddrPort netip.AddrPort) controlFn {
 	}
 }
 
-func bindIfaceToDialer(ifaceName string, dialer *net.Dialer, _ string, destination netip.Addr) error {
+func bindIfaceToDialer(ifaceName string, dialer *net.Dialer, _ string, _ netip.Addr) error {
 	ifaceObj, err := iface.ResolveInterface(ifaceName)
 	if err != nil {
 		return err
 	}
 
-	addControlToDialer(dialer, bindControl(ifaceObj.Index, netip.AddrPortFrom(destination, 0)))
+	addControlToDialer(dialer, bindControl(ifaceObj.Index))
 	return nil
 }
 
-func bindIfaceToListenConfig(ifaceName string, lc *net.ListenConfig, _, address string, rAddrPort netip.AddrPort) (string, error) {
+func bindIfaceToListenConfig(ifaceName string, lc *net.ListenConfig, _, address string) (string, error) {
 	ifaceObj, err := iface.ResolveInterface(ifaceName)
 	if err != nil {
 		return "", err
 	}
 
-	addControlToListenConfig(lc, bindControl(ifaceObj.Index, rAddrPort))
+	addControlToListenConfig(lc, bindControl(ifaceObj.Index))
 	return address, nil
 }
 

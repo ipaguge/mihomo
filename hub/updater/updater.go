@@ -16,6 +16,7 @@ import (
 	"time"
 
 	mihomoHttp "github.com/metacubex/mihomo/component/http"
+	"github.com/metacubex/mihomo/constant"
 	C "github.com/metacubex/mihomo/constant"
 	"github.com/metacubex/mihomo/log"
 
@@ -51,10 +52,6 @@ func init() {
 	if runtime.GOARCH == "amd64" && cpuid.CPU.X64Level() < 3 {
 		amd64Compatible = "-compatible"
 	}
-	if !strings.HasPrefix(C.Version, "alpha") {
-		baseURL = "https://github.com/MetaCubeX/mihomo/releases/latest/download/mihomo"
-		versionURL = "https://github.com/MetaCubeX/mihomo/releases/latest/download/version.txt"
-	}
 }
 
 type updateError struct {
@@ -67,7 +64,7 @@ func (e *updateError) Error() string {
 
 // Update performs the auto-updater.  It returns an error if the updater failed.
 // If firstRun is true, it assumes the configuration file doesn't exist.
-func UpdateCore(execPath string) (err error) {
+func Update(execPath string) (err error) {
 	mu.Lock()
 	defer mu.Unlock()
 
@@ -76,9 +73,9 @@ func UpdateCore(execPath string) (err error) {
 		return err
 	}
 
-	log.Infoln("current version %s, latest version %s", C.Version, latestVersion)
+	log.Infoln("current version %s, latest version %s", constant.Version, latestVersion)
 
-	if latestVersion == C.Version {
+	if latestVersion == constant.Version {
 		err := &updateError{Message: "already using latest version"}
 		return err
 	}

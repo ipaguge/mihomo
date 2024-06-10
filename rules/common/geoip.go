@@ -17,7 +17,6 @@ type GEOIP struct {
 	country      string
 	adapter      string
 	noResolveIP  bool
-	isSourceIP   bool
 	geoIPMatcher *router.GeoIPMatcher
 	recodeSize   int
 }
@@ -25,17 +24,11 @@ type GEOIP struct {
 var _ C.Rule = (*GEOIP)(nil)
 
 func (g *GEOIP) RuleType() C.RuleType {
-	if g.isSourceIP {
-		return C.SrcGEOIP
-	}
 	return C.GEOIP
 }
 
 func (g *GEOIP) Match(metadata *C.Metadata) (bool, string) {
 	ip := metadata.DstIP
-	if g.isSourceIP {
-		ip = metadata.SrcIP
-	}
 	if !ip.IsValid() {
 		return false, ""
 	}
@@ -56,16 +49,6 @@ func (g *GEOIP) Match(metadata *C.Metadata) (bool, string) {
 	}
 
 	if !C.GeodataMode {
-		if g.isSourceIP {
-			codes := mmdb.IPInstance().LookupCode(ip.AsSlice())
-			for _, code := range codes {
-				if g.country == code {
-					return true, g.adapter
-				}
-			}
-			return false, g.adapter
-		}
-
 		if metadata.DstGeoIP != nil {
 			return false, g.adapter
 		}
@@ -79,7 +62,7 @@ func (g *GEOIP) Match(metadata *C.Metadata) (bool, string) {
 	}
 
 	match := g.geoIPMatcher.Match(ip)
-	if match && !g.isSourceIP {
+	if match {
 		metadata.DstGeoIP = append(metadata.DstGeoIP, g.country)
 	}
 	return match, g.adapter
@@ -109,7 +92,7 @@ func (g *GEOIP) GetRecodeSize() int {
 	return g.recodeSize
 }
 
-func NewGEOIP(country string, adapter string, isSrc, noResolveIP bool) (*GEOIP, error) {
+func NewGEOIP(country string, adapter string, noResolveIP bool) (*GEOIP, error) {
 	if err := geodata.InitGeoIP(); err != nil {
 		log.Errorln("can't initial GeoIP: %s", err)
 		return nil, err
@@ -122,7 +105,6 @@ func NewGEOIP(country string, adapter string, isSrc, noResolveIP bool) (*GEOIP, 
 			country:     country,
 			adapter:     adapter,
 			noResolveIP: noResolveIP,
-			isSourceIP:  isSrc,
 		}
 		return geoip, nil
 	}
@@ -138,7 +120,6 @@ func NewGEOIP(country string, adapter string, isSrc, noResolveIP bool) (*GEOIP, 
 		country:      country,
 		adapter:      adapter,
 		noResolveIP:  noResolveIP,
-		isSourceIP:   isSrc,
 		geoIPMatcher: geoIPMatcher,
 		recodeSize:   size,
 	}

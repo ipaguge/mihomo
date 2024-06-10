@@ -14,7 +14,7 @@ import (
 	"github.com/metacubex/mihomo/log"
 
 	"github.com/gofrs/uuid/v5"
-	utls "github.com/metacubex/utls"
+	utls "github.com/sagernet/utls"
 )
 
 var (

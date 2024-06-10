@@ -43,7 +43,7 @@ var (
 
 var subnet = netip.PrefixFrom(netip.IPv4Unspecified(), 24)
 
-func ServerHandshake(rw io.ReadWriter, authenticator auth.Authenticator) (addr string, command Command, user string, err error) {
+func ServerHandshake(rw io.ReadWriter, authenticator auth.Authenticator) (addr string, command Command, err error) {
 	var req [8]byte
 	if _, err = io.ReadFull(rw, req[:]); err != nil {
 		return
@@ -73,7 +73,6 @@ func ServerHandshake(rw io.ReadWriter, authenticator auth.Authenticator) (addr s
 	if userID, err = readUntilNull(rw); err != nil {
 		return
 	}
-	user = string(userID)
 
 	if isReservedIP(dstIP) {
 		var target []byte
@@ -91,7 +90,7 @@ func ServerHandshake(rw io.ReadWriter, authenticator auth.Authenticator) (addr s
 	}
 
 	// SOCKS4 only support USERID auth.
-	if authenticator == nil || authenticator.Verify(user, "") {
+	if authenticator == nil || authenticator.Verify(string(userID), "") {
 		code = RequestGranted
 	} else {
 		code = RequestIdentdMismatched

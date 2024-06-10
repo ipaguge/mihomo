@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	_ "unsafe"
 
 	"github.com/metacubex/mihomo/adapter/inbound"
 	"github.com/metacubex/mihomo/common/lru"
@@ -17,19 +18,11 @@ import (
 	"github.com/metacubex/mihomo/log"
 )
 
-type bodyWrapper struct {
-	io.ReadCloser
-	once     sync.Once
-	onHitEOF func()
-}
+//go:linkname registerOnHitEOF net/http.registerOnHitEOF
+func registerOnHitEOF(rc io.ReadCloser, fn func())
 
-func (b *bodyWrapper) Read(p []byte) (n int, err error) {
-	n, err = b.ReadCloser.Read(p)
-	if err == io.EOF && b.onHitEOF != nil {
-		b.once.Do(b.onHitEOF)
-	}
-	return n, err
-}
+//go:linkname requestBodyRemains net/http.requestBodyRemains
+func requestBodyRemains(rc io.ReadCloser) bool
 
 func HandleConn(c net.Conn, tunnel C.Tunnel, cache *lru.LruCache[string, bool], additions ...inbound.Addition) {
 	client := newClient(c, tunnel, additions...)
@@ -58,9 +51,8 @@ func HandleConn(c net.Conn, tunnel C.Tunnel, cache *lru.LruCache[string, bool], 
 		var resp *http.Response
 
 		if !trusted {
-			var user string
-			resp, user = authenticate(request, cache)
-			additions = append(additions, inbound.WithInUser(user))
+			resp = authenticate(request, cache)
+
 			trusted = resp == nil
 		}
 
@@ -107,10 +99,10 @@ func HandleConn(c net.Conn, tunnel C.Tunnel, cache *lru.LruCache[string, bool], 
 						}
 					}()
 				}
-				if request.Body == nil || request.Body == http.NoBody {
-					startBackgroundRead()
+				if requestBodyRemains(request.Body) {
+					registerOnHitEOF(request.Body, startBackgroundRead)
 				} else {
-					request.Body = &bodyWrapper{ReadCloser: request.Body, onHitEOF: startBackgroundRead}
+					startBackgroundRead()
 				}
 				resp, err = client.Do(request)
 				if err != nil {
@@ -138,7 +130,7 @@ func HandleConn(c net.Conn, tunnel C.Tunnel, cache *lru.LruCache[string, bool], 
 	_ = conn.Close()
 }
 
-func authenticate(request *http.Request, cache *lru.LruCache[string, bool]) (resp *http.Response, u string) {
+func authenticate(request *http.Request, cache *lru.LruCache[string, bool]) *http.Response {
 	authenticator := authStore.Authenticator()
 	if inbound.SkipAuthRemoteAddress(request.RemoteAddr) {
 		authenticator = nil
@@ -148,24 +140,23 @@ func authenticate(request *http.Request, cache *lru.LruCache[string, bool]) (res
 		if credential == "" {
 			resp := responseWith(request, http.StatusProxyAuthRequired)
 			resp.Header.Set("Proxy-Authenticate", "Basic")
-			return resp, ""
+			return resp
 		}
 
 		authed, exist := cache.Get(credential)
 		if !exist {
 			user, pass, err := decodeBasicProxyAuthorization(credential)
 			authed = err == nil && authenticator.Verify(user, pass)
-			u = user
 			cache.Set(credential, authed)
 		}
 		if !authed {
 			log.Infoln("Auth failed from %s", request.RemoteAddr)
 
-			return responseWith(request, http.StatusForbidden), u
+			return responseWith(request, http.StatusForbidden)
 		}
 	}
 
-	return nil, u
+	return nil
 }
 
 func responseWith(request *http.Request, statusCode int) *http.Response {

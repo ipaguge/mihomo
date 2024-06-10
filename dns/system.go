@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/metacubex/mihomo/component/resolver"
 	"github.com/metacubex/mihomo/log"
 
 	D "github.com/miekg/dns"
@@ -40,9 +39,6 @@ func (c *systemClient) getDnsClients() ([]dnsClient, error) {
 		if nameservers, err = dnsReadConfig(); err == nil {
 			log.Debugln("[DNS] system dns update to %s", nameservers)
 			for _, addr := range nameservers {
-				if resolver.IsSystemDnsBlacklisted(addr) {
-					continue
-				}
 				if _, ok := c.dnsClients[addr]; !ok {
 					clients := transform(
 						[]NameServer{{

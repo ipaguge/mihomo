@@ -8,9 +8,10 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"syscall"
+	"time"
 
-	"github.com/metacubex/mihomo/component/updater"
 	"github.com/metacubex/mihomo/config"
 	C "github.com/metacubex/mihomo/constant"
 	"github.com/metacubex/mihomo/constant/features"
@@ -22,15 +23,16 @@ import (
 )
 
 var (
-	version                bool
-	testConfig             bool
-	geodataMode            bool
-	homeDir                string
-	configFile             string
-	externalUI             string
-	externalController     string
-	externalControllerUnix string
-	secret                 string
+	version            bool
+	testConfig         bool
+	geodataMode        bool
+	homeDir            string
+	configFile         string
+	externalUI         string
+	externalController string
+	secret             string
+	updateGeoMux       sync.Mutex
+	updatingGeo        = false
 )
 
 func init() {
@@ -38,7 +40,6 @@ func init() {
 	flag.StringVar(&configFile, "f", os.Getenv("CLASH_CONFIG_FILE"), "specify configuration file")
 	flag.StringVar(&externalUI, "ext-ui", os.Getenv("CLASH_OVERRIDE_EXTERNAL_UI_DIR"), "override external ui directory")
 	flag.StringVar(&externalController, "ext-ctl", os.Getenv("CLASH_OVERRIDE_EXTERNAL_CONTROLLER"), "override external controller address")
-	flag.StringVar(&externalControllerUnix, "ext-ctl-unix", os.Getenv("CLASH_OVERRIDE_EXTERNAL_CONTROLLER_UNIX"), "override external controller unix address")
 	flag.StringVar(&secret, "secret", os.Getenv("CLASH_OVERRIDE_SECRET"), "override secret for RESTful API")
 	flag.BoolVar(&geodataMode, "m", false, "set geodata mode")
 	flag.BoolVar(&version, "v", false, "show current version of mihomo")
@@ -101,9 +102,6 @@ func main() {
 	if externalController != "" {
 		options = append(options, hub.WithExternalController(externalController))
 	}
-	if externalControllerUnix != "" {
-		options = append(options, hub.WithExternalControllerUnix(externalControllerUnix))
-	}
 	if secret != "" {
 		options = append(options, hub.WithSecret(secret))
 	}
@@ -113,23 +111,16 @@ func main() {
 	}
 
 	if C.GeoAutoUpdate {
-		updateNotification := make(chan struct{})
-		go updater.RegisterGeoUpdater(updateNotification)
+		ticker := time.NewTicker(time.Duration(C.GeoUpdateInterval) * time.Hour)
 
+		log.Infoln("[GEO] Start update GEO database every %d hours", C.GeoUpdateInterval)
 		go func() {
-			for range updateNotification {
-				cfg, err := executor.ParseWithPath(C.Path.Config())
-				if err != nil {
-					log.Errorln("[GEO] update GEO databases failed: %v", err)
-					return
-				}
-
-				log.Warnln("[GEO] update GEO databases success, applying config")
-
-				executor.ApplyConfig(cfg, false)
+			for range ticker.C {
+				updateGeoDatabases()
 			}
 		}()
 	}
+
 	defer executor.Shutdown()
 
 	termSign := make(chan os.Signal, 1)
@@ -148,4 +139,40 @@ func main() {
 			}
 		}
 	}
+}
+
+func updateGeoDatabases() {
+	log.Infoln("[GEO] Start updating GEO database")
+	updateGeoMux.Lock()
+
+	if updatingGeo {
+		updateGeoMux.Unlock()
+		log.Infoln("[GEO] GEO database is updating, skip")
+		return
+	}
+
+	updatingGeo = true
+	updateGeoMux.Unlock()
+
+	go func() {
+		defer func() {
+			updatingGeo = false
+		}()
+
+		log.Infoln("[GEO] Updating GEO database")
+
+		if err := config.UpdateGeoDatabases(); err != nil {
+			log.Errorln("[GEO] update GEO database error: %s", err.Error())
+			return
+		}
+
+		cfg, err := executor.ParseWithPath(C.Path.Config())
+		if err != nil {
+			log.Errorln("[GEO] update GEO database failed: %s", err.Error())
+			return
+		}
+
+		log.Infoln("[GEO] Update GEO database success, apply new config")
+		executor.ApplyConfig(cfg, false)
+	}()
 }

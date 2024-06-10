@@ -66,10 +66,7 @@ func (hc *httpConn) Write(b []byte) (int, error) {
 	}
 
 	u := fmt.Sprintf("http://%s%s", net.JoinHostPort(host, "80"), path)
-	req, err := http.NewRequest(utils.EmptyOr(hc.cfg.Method, http.MethodGet), u, bytes.NewBuffer(b))
-	if err != nil {
-		return 0, err
-	}
+	req, _ := http.NewRequest(utils.EmptyOr(hc.cfg.Method, http.MethodGet), u, bytes.NewBuffer(b))
 	for key, list := range hc.cfg.Headers {
 		req.Header.Set(key, list[fastrand.Intn(len(list))])
 	}

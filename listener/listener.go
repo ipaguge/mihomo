@@ -2,12 +2,16 @@ package listener
 
 import (
 	"fmt"
-	"golang.org/x/exp/slices"
+	"github.com/metacubex/mihomo/dns"
+	"github.com/metacubex/mihomo/listener/socket"
 	"net"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
+
+	"golang.org/x/exp/slices"
 
 	"github.com/metacubex/mihomo/component/ebpf"
 	C "github.com/metacubex/mihomo/constant"
@@ -33,6 +37,7 @@ var (
 	allowLan    = false
 	bindAddress = "*"
 
+	socketListener      *socket.SocketListener
 	socksListener       *socks.Listener
 	socksUDPListener    *socks.UDPListener
 	httpListener        *http.Listener
@@ -55,6 +60,7 @@ var (
 
 	// lock for recreate function
 	socksMux     sync.Mutex
+	socketMux    sync.Mutex
 	httpMux      sync.Mutex
 	redirMux     sync.Mutex
 	tproxyMux    sync.Mutex
@@ -70,6 +76,7 @@ var (
 
 	LastTunConf  LC.Tun
 	LastTuicConf LC.TuicServer
+	dnsSetter    *dns.DNSSetter
 )
 
 type Ports struct {
@@ -144,6 +151,41 @@ func ReCreateHTTP(port int, tunnel C.Tunnel) {
 	}
 
 	log.Infoln("HTTP proxy listening at: %s", httpListener.Address())
+}
+
+func ReCreateSocket(port int, tunnel C.Tunnel) {
+	socketMux.Lock()
+	defer socketMux.Unlock()
+
+	var err error
+	defer func() {
+		if err != nil {
+			log.Errorln("Start Socket server error: %s", err.Error())
+		}
+	}()
+
+	addr := genAddr(bindAddress, port, allowLan)
+
+	if socketListener != nil {
+		if socketListener.RawAddress() == addr {
+			return
+		}
+		socketListener.Close()
+		socketListener = nil
+	}
+
+	if portIsZero(addr) {
+		return
+	}
+
+	socketListener, err = socket.NewSocketListener(addr, tunnel)
+	if err != nil {
+		log.Errorln("Start Socket server error:", err)
+		return
+	}
+
+	log.Infoln("Socket server listening at:", socketListener.Address())
+
 }
 
 func ReCreateSocks(port int, tunnel C.Tunnel) {
@@ -503,31 +545,40 @@ func ReCreateMixed(port int, tunnel C.Tunnel) {
 	log.Infoln("Mixed(http+socks) proxy listening at: %s", mixedListener.Address())
 }
 
-func ReCreateTun(tunConf LC.Tun, tunnel C.Tunnel) {
+func ReCreateTun(tunConf LC.Tun, tunnel C.Tunnel) (err error) {
 	tunMux.Lock()
 	defer func() {
 		LastTunConf = tunConf
 		tunMux.Unlock()
 	}()
 
-	var err error
 	defer func() {
 		if err != nil {
 			log.Errorln("Start TUN listening error: %s", err.Error())
-			tunConf.Enable = false
+			LastTunConf.Enable = false
+			closeTunListener()
 		}
 	}()
 
 	if !hasTunConfigChange(&tunConf) {
+		log.Infoln("!hasTunConfigChange")
 		if tunLister != nil {
 			tunLister.FlushDefaultInterface()
 		}
 		return
 	}
+	if dnsSetter == nil {
+		dnsSetter, err = dns.NewDNSSetter()
+		if err != nil {
+			log.Errorln("获取系统网卡名用于设置DNS失败 ", err.Error())
+			return
+		}
+	}
 
 	closeTunListener()
 
 	if !tunConf.Enable {
+		log.Infoln("tunConf.Enable = false")
 		return
 	}
 
@@ -536,11 +587,16 @@ func ReCreateTun(tunConf LC.Tun, tunnel C.Tunnel) {
 		return
 	}
 	tunLister = lister
-
 	log.Infoln("[TUN] Tun adapter listening at: %s", tunLister.Address())
+
+	r := dnsSetter.SetDNSForAllInterfaces([]string{"114.114.114.114", "8.8.8.8", "114.114.115.115", "8.8.4.4"})
+	if r != nil {
+		log.Errorln("设置系统dns失败 ", r.Error())
+	}
+	return
 }
 
-func ReCreateRedirToTun(ifaceNames []string) {
+func ReCreateRedirToTun(ifaceNames []string) (err error) {
 	tcMux.Lock()
 	defer tcMux.Unlock()
 
@@ -571,6 +627,7 @@ func ReCreateRedirToTun(ifaceNames []string) {
 	tcProgram = program
 
 	log.Infoln("Attached tc ebpf program to interfaces %v", tcProgram.RawNICs())
+	return
 }
 
 func ReCreateAutoRedir(ifaceNames []string, tunnel C.Tunnel) {
@@ -824,7 +881,7 @@ func hasTunConfigChange(tunConf *LC.Tun) bool {
 		LastTunConf.EndpointIndependentNat != tunConf.EndpointIndependentNat ||
 		LastTunConf.UDPTimeout != tunConf.UDPTimeout ||
 		LastTunConf.FileDescriptor != tunConf.FileDescriptor ||
-		LastTunConf.TableIndex != tunConf.TableIndex {
+		LastTunConf.TableIndex != tunConf.TableIndex || tunLister == nil {
 		return true
 	}
 
@@ -922,6 +979,14 @@ func closeTunListener() {
 	if tunLister != nil {
 		tunLister.Close()
 		tunLister = nil
+		LastTunConf.Enable = false
+		time.Sleep(500 * time.Millisecond)
+	}
+	if dnsSetter != nil {
+		err := dnsSetter.RestoreAllInterfacesDNS()
+		if err != nil {
+			log.Errorln("还原系统dns失败 ", err.Error())
+		}
 	}
 }
 

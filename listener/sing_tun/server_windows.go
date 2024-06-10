@@ -3,7 +3,6 @@ package sing_tun
 import (
 	"time"
 
-	"github.com/metacubex/mihomo/constant/features"
 	"github.com/metacubex/mihomo/log"
 
 	tun "github.com/metacubex/sing-tun"
@@ -28,9 +27,4 @@ func tunNew(options tun.Options) (tunIf tun.Tun, err error) {
 
 func init() {
 	tun.TunnelType = InterfaceName
-
-	if features.WindowsMajorVersion < 10 {
-		// to resolve "bind: The requested address is not valid in its context"
-		EnforceBindInterface = true
-	}
 }

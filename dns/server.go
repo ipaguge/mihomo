@@ -3,6 +3,7 @@ package dns
 import (
 	stdContext "context"
 	"errors"
+	"fmt"
 	"net"
 
 	"github.com/metacubex/mihomo/common/sockopt"
@@ -49,7 +50,7 @@ func (s *Server) SetHandler(handler handler) {
 	s.handler = handler
 }
 
-func ReCreateServer(addr string, resolver *Resolver, mapper *ResolverEnhancer) {
+func ReCreateServer(addr string, resolver *Resolver, mapper *ResolverEnhancer) (err error) {
 	if features.CMFA {
 		UpdateIsolateHandler(resolver, mapper)
 	}
@@ -57,7 +58,7 @@ func ReCreateServer(addr string, resolver *Resolver, mapper *ResolverEnhancer) {
 	if addr == address && resolver != nil {
 		handler := NewHandler(resolver, mapper)
 		server.SetHandler(handler)
-		return
+		return nil
 	}
 
 	if server.Server != nil {
@@ -67,10 +68,10 @@ func ReCreateServer(addr string, resolver *Resolver, mapper *ResolverEnhancer) {
 	}
 
 	if addr == "" {
+		err = fmt.Errorf("dns addr is null")
 		return
 	}
 
-	var err error
 	defer func() {
 		if err != nil {
 			log.Errorln("Start DNS server error: %s", err.Error())
@@ -95,7 +96,6 @@ func ReCreateServer(addr string, resolver *Resolver, mapper *ResolverEnhancer) {
 	err = sockopt.UDPReuseaddr(p)
 	if err != nil {
 		log.Warnln("Failed to Reuse UDP Address: %s", err)
-
 		err = nil
 	}
 
@@ -105,8 +105,12 @@ func ReCreateServer(addr string, resolver *Resolver, mapper *ResolverEnhancer) {
 	server.Server = &D.Server{Addr: addr, PacketConn: p, Handler: server}
 
 	go func() {
-		server.ActivateAndServe()
+		err = server.ActivateAndServe()
+		if err != nil {
+			log.Errorln("DNS server listening at: %s %s", p.LocalAddr().String(), err.Error())
+		}
 	}()
 
 	log.Infoln("DNS server listening at: %s", p.LocalAddr().String())
+	return
 }

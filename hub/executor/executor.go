@@ -1,7 +1,9 @@
 package executor
 
 import (
+	"encoding/json"
 	"fmt"
+	"gopkg.in/yaml.v3"
 	"net"
 	"net/netip"
 	"os"
@@ -71,13 +73,32 @@ func ParseWithPath(path string) (*config.Config, error) {
 	return ParseWithBytes(buf)
 }
 
+func isJSON(s []byte) bool {
+	var js map[string]interface{}
+	return json.Unmarshal(s, &js) == nil
+}
+
 // ParseWithBytes config with buffer
 func ParseWithBytes(buf []byte) (*config.Config, error) {
+	if isJSON(buf) {
+		var data interface{}
+		err := json.Unmarshal(buf, &data)
+		if err != nil {
+			log.Errorln("JSON配置验证不通过 %s", err.Error())
+			return nil, err
+		}
+
+		buf, err = yaml.Marshal(data)
+		if err != nil {
+			log.Errorln("JSON->YAML 配置验证不通过 %s", err.Error())
+			return nil, err
+		}
+	}
 	return config.Parse(buf)
 }
 
 // ApplyConfig dispatch configure to all parts
-func ApplyConfig(cfg *config.Config, force bool) {
+func ApplyConfig(cfg *config.Config, force bool) (err error) {
 	mux.Lock()
 	defer mux.Unlock()
 
@@ -85,11 +106,12 @@ func ApplyConfig(cfg *config.Config, force bool) {
 
 	ca.ResetCertificate()
 	for _, c := range cfg.TLS.CustomTrustCert {
-		if err := ca.AddCertificate(c); err != nil {
+		err = ca.AddCertificate(c)
+		if err != nil {
 			log.Warnln("%s\nadd error: %s", c, err.Error())
 		}
 	}
-
+	//updateSpeed(cfg.DNS.CloudflareDns)
 	updateUsers(cfg.Users)
 	updateProxies(cfg.Proxies, cfg.Providers)
 	updateRules(cfg.Rules, cfg.SubRules, cfg.RuleProviders)
@@ -97,10 +119,18 @@ func ApplyConfig(cfg *config.Config, force bool) {
 	updateHosts(cfg.Hosts)
 	updateGeneral(cfg.General)
 	updateNTP(cfg.NTP)
-	updateDNS(cfg.DNS, cfg.RuleProviders, cfg.General.IPv6)
+
+	err = updateDNS(cfg.DNS, cfg.RuleProviders, cfg.General.IPv6)
+	if err != nil {
+		return
+	}
+
 	updateListeners(cfg.General, cfg.Listeners, force)
 	updateIPTables(cfg)
-	updateTun(cfg.General)
+	err = updateTun(cfg.General)
+	if err != nil {
+		return
+	}
 	updateExperimental(cfg)
 	updateTunnels(cfg.Tunnels)
 
@@ -115,6 +145,8 @@ func ApplyConfig(cfg *config.Config, force bool) {
 	hcCompatibleProvider(cfg.Providers)
 
 	log.SetLevel(cfg.General.LogLevel)
+
+	return
 }
 
 func initInnerTcp() {
@@ -211,7 +243,7 @@ func updateNTP(c *config.NTP) {
 	}
 }
 
-func updateDNS(c *config.DNS, ruleProvider map[string]provider.RuleProvider, generalIPv6 bool) {
+func updateDNS(c *config.DNS, ruleProvider map[string]provider.RuleProvider, generalIPv6 bool) (err error) {
 	if !c.Enable {
 		resolver.DefaultResolver = nil
 		resolver.DefaultHostMapper = nil
@@ -253,13 +285,13 @@ func updateDNS(c *config.DNS, ruleProvider map[string]provider.RuleProvider, gen
 	resolver.DefaultResolver = r
 	resolver.DefaultHostMapper = m
 	resolver.DefaultLocalServer = dns.NewLocalServer(r, m)
-	resolver.UseSystemHosts = c.UseSystemHosts
 
 	if pr.Invalid() {
 		resolver.ProxyServerHostResolver = pr
 	}
 
-	dns.ReCreateServer(c.Listen, r, m)
+	err = dns.ReCreateServer(c.Listen, r, m)
+	return
 }
 
 func updateHosts(tree *trie.DomainTrie[resolver.HostValue]) {
@@ -350,14 +382,17 @@ func hcCompatibleProvider(proxyProviders map[string]provider.ProxyProvider) {
 	}
 
 }
-func updateTun(general *config.General) {
+func updateTun(general *config.General) (err error) {
 	if general == nil {
 		return
 	}
-	listener.ReCreateTun(general.Tun, tunnel.Tunnel)
-	listener.ReCreateRedirToTun(general.Tun.RedirectToTun)
+	err = listener.ReCreateTun(general.Tun, tunnel.Tunnel)
+	if err != nil {
+		return
+	}
+	err = listener.ReCreateRedirToTun(general.Tun.RedirectToTun)
+	return
 }
-
 func updateSniffer(sniffer *config.Sniffer) {
 	if sniffer.Enable {
 		dispatcher, err := SNI.NewSnifferDispatcher(
@@ -380,11 +415,9 @@ func updateSniffer(sniffer *config.Sniffer) {
 		log.Infoln("Sniffer is closed")
 	}
 }
-
 func updateTunnels(tunnels []LC.Tunnel) {
 	listener.PatchTunnel(tunnels, tunnel.Tunnel)
 }
-
 func updateGeneral(general *config.General) {
 	tunnel.SetMode(general.Mode)
 	tunnel.SetFindProcessMode(general.FindProcessMode)
@@ -410,7 +443,6 @@ func updateGeneral(general *config.General) {
 	G.SetLoader(general.GeodataLoader)
 	G.SetSiteMatcher(general.GeositeMatcher)
 }
-
 func updateUsers(users []auth.AuthUser) {
 	authenticator := auth.NewAuthenticator(users)
 	authStore.SetAuthenticator(authenticator)
@@ -418,7 +450,6 @@ func updateUsers(users []auth.AuthUser) {
 		log.Infoln("Authentication of local server updated")
 	}
 }
-
 func updateProfile(cfg *config.Config) {
 	profileCfg := cfg.Profile
 
@@ -427,7 +458,6 @@ func updateProfile(cfg *config.Config) {
 		patchSelectGroup(cfg.Proxies)
 	}
 }
-
 func patchSelectGroup(proxies map[string]C.Proxy) {
 	mapping := cachefile.Cache().SelectedMap()
 	if mapping == nil {
@@ -453,7 +483,6 @@ func patchSelectGroup(proxies map[string]C.Proxy) {
 		selector.ForceSet(selected)
 	}
 }
-
 func updateIPTables(cfg *config.Config) {
 	tproxy.CleanupTProxyIPTables()
 
@@ -518,11 +547,9 @@ func updateIPTables(cfg *config.Config) {
 
 	log.Infoln("[IPTABLES] Setting iptables completed")
 }
-
 func Shutdown() {
 	listener.Cleanup()
 	tproxy.CleanupTProxyIPTables()
 	resolver.StoreFakePoolState()
-
 	log.Warnln("Mihomo shutting down")
 }

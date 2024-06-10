@@ -13,8 +13,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-
-	C "github.com/metacubex/mihomo/constant"
 )
 
 var trustCerts []*x509.Certificate
@@ -67,6 +65,9 @@ func ResetCertificate() {
 }
 
 func getCertPool() *x509.CertPool {
+	if len(trustCerts) == 0 {
+		return nil
+	}
 	if globalCertPool == nil {
 		mutex.Lock()
 		defer mutex.Unlock()
@@ -116,7 +117,7 @@ func GetTLSConfig(tlsConfig *tls.Config, fingerprint string, customCA string, cu
 	var certificate []byte
 	var err error
 	if len(customCA) > 0 {
-		certificate, err = os.ReadFile(C.Path.Resolve(customCA))
+		certificate, err = os.ReadFile(customCA)
 		if err != nil {
 			return nil, fmt.Errorf("load ca error: %w", err)
 		}

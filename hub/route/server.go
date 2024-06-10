@@ -7,11 +7,8 @@ import (
 	"encoding/json"
 	"net"
 	"net/http"
-	"os"
-	"path/filepath"
 	"runtime/debug"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/metacubex/mihomo/adapter/inbound"
@@ -50,7 +47,15 @@ func SetUIPath(path string) {
 	uiPath = C.Path.Resolve(path)
 }
 
-func router(isDebug bool, withAuth bool) *chi.Mux {
+func Start(addr string, tlsAddr string, secret string,
+	certificat, privateKey string, isDebug bool) {
+	if serverAddr != "" {
+		return
+	}
+
+	serverAddr = addr
+	serverSecret = secret
+
 	r := chi.NewRouter()
 	corsM := cors.New(cors.Options{
 		AllowedOrigins: []string{"*"},
@@ -72,9 +77,7 @@ func router(isDebug bool, withAuth bool) *chi.Mux {
 		}())
 	}
 	r.Group(func(r chi.Router) {
-		if withAuth {
-			r.Use(authentication)
-		}
+		r.Use(authentication)
 		r.Get("/", hello)
 		r.Get("/logs", getLogs)
 		r.Get("/traffic", traffic)
@@ -104,21 +107,10 @@ func router(isDebug bool, withAuth bool) *chi.Mux {
 			})
 		})
 	}
-	return r
-}
-
-func Start(addr string, tlsAddr string, secret string,
-	certificate, privateKey string, isDebug bool) {
-	if serverAddr != "" {
-		return
-	}
-
-	serverAddr = addr
-	serverSecret = secret
 
 	if len(tlsAddr) > 0 {
 		go func() {
-			c, err := CN.ParseCert(certificate, privateKey, C.Path)
+			c, err := CN.ParseCert(certificat, privateKey, C.Path)
 			if err != nil {
 				log.Errorln("External controller tls listen error: %s", err)
 				return
@@ -133,7 +125,7 @@ func Start(addr string, tlsAddr string, secret string,
 			serverAddr = l.Addr().String()
 			log.Infoln("RESTful API tls listening at: %s", serverAddr)
 			tlsServe := &http.Server{
-				Handler: router(isDebug, true),
+				Handler: r,
 				TLSConfig: &tls.Config{
 					Certificates: []tls.Certificate{c},
 				},
@@ -152,43 +144,10 @@ func Start(addr string, tlsAddr string, secret string,
 	serverAddr = l.Addr().String()
 	log.Infoln("RESTful API listening at: %s", serverAddr)
 
-	if err = http.Serve(l, router(isDebug, true)); err != nil {
+	if err = http.Serve(l, r); err != nil {
 		log.Errorln("External controller serve error: %s", err)
 	}
 
-}
-
-func StartUnix(addr string, isDebug bool) {
-	addr = C.Path.Resolve(addr)
-
-	dir := filepath.Dir(addr)
-	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		if err := os.MkdirAll(dir, 0o755); err != nil {
-			log.Errorln("External controller unix listen error: %s", err)
-			return
-		}
-	}
-
-	// https://devblogs.microsoft.com/commandline/af_unix-comes-to-windows/
-	//
-	// Note: As mentioned above in the ‘security’ section, when a socket binds a socket to a valid pathname address,
-	// a socket file is created within the filesystem. On Linux, the application is expected to unlink
-	// (see the notes section in the man page for AF_UNIX) before any other socket can be bound to the same address.
-	// The same applies to Windows unix sockets, except that, DeleteFile (or any other file delete API)
-	// should be used to delete the socket file prior to calling bind with the same path.
-	_ = syscall.Unlink(addr)
-
-	l, err := inbound.Listen("unix", addr)
-	if err != nil {
-		log.Errorln("External controller unix listen error: %s", err)
-		return
-	}
-	serverAddr = l.Addr().String()
-	log.Infoln("RESTful API unix listening at: %s", serverAddr)
-
-	if err = http.Serve(l, router(isDebug, false)); err != nil {
-		log.Errorln("External controller unix serve error: %s", err)
-	}
 }
 
 func setPrivateNetworkAccess(next http.Handler) http.Handler {
