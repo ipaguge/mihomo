@@ -190,7 +190,7 @@ func (u *URLTest) URLTest(ctx context.Context, url string, expectedStatus utils.
 		proxy := proxy
 		wg.Add(1)
 		go func() {
-			delay, err := proxy.URLTest(ctx, u.testUrl, expectedStatus)
+			delay, err := proxy.URLTestWhole(ctx, u.testUrl, expectedStatus)
 			if err == nil {
 				lock.Lock()
 				mp[proxy.Name()] = delay

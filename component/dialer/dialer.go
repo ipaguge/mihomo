@@ -78,6 +78,45 @@ func DialContext(ctx context.Context, network, address string, options ...Option
 	}
 }
 
+func ipStringToIP(ipStr string) net.IP {
+	addr, err := netip.ParseAddr(ipStr)
+	if err == nil {
+		return addr.AsSlice()
+	}
+
+	ip := net.ParseIP(ipStr)
+	if ip == nil {
+		return nil
+	}
+
+	return ip
+}
+
+func resolveSrcAddr(network string, ip string) net.Addr {
+
+	if ip == "" {
+		return nil
+	}
+
+	addr := ipStringToIP(ip)
+
+	if addr == nil {
+		return nil
+	}
+
+	if network == "tcp" {
+		return &net.TCPAddr{
+			IP:   addr,
+			Port: 0,
+		}
+	}
+
+	return &net.UDPAddr{
+		IP:   addr,
+		Port: 0,
+	}
+}
+
 func ListenPacket(ctx context.Context, network, address string, rAddrPort netip.AddrPort, options ...Option) (net.PacketConn, error) {
 	if features.CMFA && DefaultSocketHook != nil {
 		return listenPacketHooked(ctx, network, address)
@@ -140,7 +179,13 @@ func dialContext(ctx context.Context, network string, destination netip.Addr, po
 	netDialer := opt.netDialer
 	switch netDialer.(type) {
 	case nil:
-		netDialer = &net.Dialer{}
+
+		dialer := &net.Dialer{}
+		if sendThrough, ok := ctx.Value("SendThrough").(string); ok && sendThrough != "" {
+			dialer.LocalAddr = resolveSrcAddr(network, sendThrough)
+		}
+		netDialer = dialer
+
 	case *net.Dialer:
 		_netDialer := *netDialer.(*net.Dialer)
 		netDialer = &_netDialer // make a copy
@@ -383,6 +428,17 @@ func (d Dialer) ListenPacket(ctx context.Context, network, address string, rAddr
 		// avoid "The requested address is not valid in its context."
 		opt = WithInterface("")
 	}
+
+	if address == "" {
+		if sendThrough, ok := ctx.Value("SendThrough").(string); ok && sendThrough != "" {
+			addr := resolveSrcAddr(network, sendThrough)
+			if addr != nil {
+				address = addr.String()
+			}
+		}
+
+	}
+
 	return ListenPacket(ctx, ParseNetwork(network, rAddrPort.Addr()), address, rAddrPort, opt)
 }
 

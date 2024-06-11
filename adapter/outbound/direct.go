@@ -28,7 +28,14 @@ func (d *Direct) DialContext(ctx context.Context, metadata *C.Metadata, opts ...
 		return nil, err
 	}
 	opts = append(opts, dialer.WithResolver(resolver.DefaultResolver))
-	c, err := dialer.DialContext(ctx, "tcp", metadata.RemoteAddress(), d.Base.DialOptions(opts...)...)
+	remoteAddress := metadata.RemoteAddress()
+	dialOptions := d.Base.DialOptions(opts...)
+
+	if d.sendThrough != "" {
+		ctx = context.WithValue(ctx, "SendThrough", d.sendThrough)
+	}
+
+	c, err := dialer.DialContext(ctx, "tcp", remoteAddress, dialOptions...)
 	if err != nil {
 		return nil, err
 	}
@@ -49,6 +56,9 @@ func (d *Direct) ListenPacketContext(ctx context.Context, metadata *C.Metadata, 
 		}
 		metadata.DstIP = ip
 	}
+	if d.sendThrough != "" {
+		ctx = context.WithValue(ctx, "SendThrough", d.sendThrough)
+	}
 	pc, err := dialer.NewDialer(d.Base.DialOptions(opts...)...).ListenPacket(ctx, "udp", "", netip.AddrPortFrom(metadata.DstIP, metadata.DstPort))
 	if err != nil {
 		return nil, err
@@ -59,14 +69,15 @@ func (d *Direct) ListenPacketContext(ctx context.Context, metadata *C.Metadata, 
 func NewDirectWithOption(option DirectOption) *Direct {
 	return &Direct{
 		Base: &Base{
-			name:   option.Name,
-			tp:     C.Direct,
-			udp:    true,
-			tfo:    option.TFO,
-			mpTcp:  option.MPTCP,
-			iface:  option.Interface,
-			rmark:  option.RoutingMark,
-			prefer: C.NewDNSPrefer(option.IPVersion),
+			name:        option.Name,
+			tp:          C.Direct,
+			udp:         true,
+			tfo:         option.TFO,
+			mpTcp:       option.MPTCP,
+			iface:       option.Interface,
+			rmark:       option.RoutingMark,
+			sendThrough: option.SendThrough,
+			prefer:      C.NewDNSPrefer(option.IPVersion),
 		},
 		loopBack: loopback.NewDetector(),
 	}

@@ -28,7 +28,9 @@ func NewDetector() *Detector {
 
 func (l *Detector) NewConn(conn C.Conn) C.Conn {
 	metadata := C.Metadata{}
-	if metadata.SetRemoteAddr(conn.LocalAddr()) != nil {
+	localAddr := conn.LocalAddr()
+
+	if metadata.SetRemoteAddr(localAddr) != nil {
 		return conn
 	}
 	connAddr := metadata.AddrPort()
@@ -43,7 +45,8 @@ func (l *Detector) NewConn(conn C.Conn) C.Conn {
 
 func (l *Detector) NewPacketConn(conn C.PacketConn) C.PacketConn {
 	metadata := C.Metadata{}
-	if metadata.SetRemoteAddr(conn.LocalAddr()) != nil {
+	localAddr := conn.LocalAddr()
+	if metadata.SetRemoteAddr(localAddr) != nil {
 		return conn
 	}
 	connAddr := metadata.AddrPort()

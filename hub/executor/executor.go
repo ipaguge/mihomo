@@ -1,7 +1,9 @@
 package executor
 
 import (
+	"encoding/json"
 	"fmt"
+	"gopkg.in/yaml.v3"
 	"net"
 	"net/netip"
 	"os"
@@ -71,13 +73,32 @@ func ParseWithPath(path string) (*config.Config, error) {
 	return ParseWithBytes(buf)
 }
 
+func isJSON(s []byte) bool {
+	var js map[string]interface{}
+	return json.Unmarshal(s, &js) == nil
+}
+
 // ParseWithBytes config with buffer
 func ParseWithBytes(buf []byte) (*config.Config, error) {
+	if isJSON(buf) {
+		var data interface{}
+		err := json.Unmarshal(buf, &data)
+		if err != nil {
+			log.Errorln("JSON配置验证不通过 %s", err.Error())
+			return nil, err
+		}
+
+		buf, err = yaml.Marshal(data)
+		if err != nil {
+			log.Errorln("JSON->YAML 配置验证不通过 %s", err.Error())
+			return nil, err
+		}
+	}
 	return config.Parse(buf)
 }
 
 // ApplyConfig dispatch configure to all parts
-func ApplyConfig(cfg *config.Config, force bool) {
+func ApplyConfig(cfg *config.Config, force bool) (err error) {
 	mux.Lock()
 	defer mux.Unlock()
 
@@ -97,10 +118,16 @@ func ApplyConfig(cfg *config.Config, force bool) {
 	updateHosts(cfg.Hosts)
 	updateGeneral(cfg.General)
 	updateNTP(cfg.NTP)
-	updateDNS(cfg.DNS, cfg.RuleProviders, cfg.General.IPv6)
+	err = updateDNS(cfg.DNS, cfg.RuleProviders, cfg.General.IPv6)
+	if err != nil {
+		return
+	}
 	updateListeners(cfg.General, cfg.Listeners, force)
 	updateIPTables(cfg)
-	updateTun(cfg.General)
+	err = updateTun(cfg.General)
+	if err != nil {
+		return
+	}
 	updateExperimental(cfg)
 	updateTunnels(cfg.Tunnels)
 
@@ -115,6 +142,7 @@ func ApplyConfig(cfg *config.Config, force bool) {
 	hcCompatibleProvider(cfg.Providers)
 
 	log.SetLevel(cfg.General.LogLevel)
+	return
 }
 
 func initInnerTcp() {
@@ -211,7 +239,7 @@ func updateNTP(c *config.NTP) {
 	}
 }
 
-func updateDNS(c *config.DNS, ruleProvider map[string]provider.RuleProvider, generalIPv6 bool) {
+func updateDNS(c *config.DNS, ruleProvider map[string]provider.RuleProvider, generalIPv6 bool) (err error) {
 	if !c.Enable {
 		resolver.DefaultResolver = nil
 		resolver.DefaultHostMapper = nil
@@ -260,6 +288,7 @@ func updateDNS(c *config.DNS, ruleProvider map[string]provider.RuleProvider, gen
 	}
 
 	dns.ReCreateServer(c.Listen, r, m)
+	return
 }
 
 func updateHosts(tree *trie.DomainTrie[resolver.HostValue]) {
@@ -350,14 +379,17 @@ func hcCompatibleProvider(proxyProviders map[string]provider.ProxyProvider) {
 	}
 
 }
-func updateTun(general *config.General) {
+func updateTun(general *config.General) (err error) {
 	if general == nil {
 		return
 	}
-	listener.ReCreateTun(general.Tun, tunnel.Tunnel)
-	listener.ReCreateRedirToTun(general.Tun.RedirectToTun)
+	err = listener.ReCreateTun(general.Tun, tunnel.Tunnel)
+	if err != nil {
+		return
+	}
+	err = listener.ReCreateRedirToTun(general.Tun.RedirectToTun)
+	return
 }
-
 func updateSniffer(sniffer *config.Sniffer) {
 	if sniffer.Enable {
 		dispatcher, err := SNI.NewSnifferDispatcher(

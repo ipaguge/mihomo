@@ -14,17 +14,18 @@ import (
 )
 
 type Base struct {
-	name   string
-	addr   string
-	iface  string
-	tp     C.AdapterType
-	udp    bool
-	xudp   bool
-	tfo    bool
-	mpTcp  bool
-	rmark  int
-	id     string
-	prefer C.DNSPrefer
+	name        string
+	addr        string
+	iface       string
+	tp          C.AdapterType
+	udp         bool
+	xudp        bool
+	tfo         bool
+	mpTcp       bool
+	rmark       int
+	id          string
+	sendThrough string
+	prefer      C.DNSPrefer
 }
 
 // Name implements C.ProxyAdapter
@@ -152,6 +153,7 @@ func (b *Base) DialOptions(opts ...dialer.Option) []dialer.Option {
 }
 
 type BasicOption struct {
+	SendThrough string `proxy:"send-through,omitempty" group:"send-through,omitempty"`
 	TFO         bool   `proxy:"tfo,omitempty" group:"tfo,omitempty"`
 	MPTCP       bool   `proxy:"mptcp,omitempty" group:"mptcp,omitempty"`
 	Interface   string `proxy:"interface-name,omitempty" group:"interface-name,omitempty"`

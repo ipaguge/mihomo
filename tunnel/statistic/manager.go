@@ -1,13 +1,13 @@
 package statistic
 
 import (
-	"os"
+	//"os"
 	"time"
 
 	"github.com/metacubex/mihomo/common/atomic"
 
 	"github.com/puzpuzpuz/xsync/v3"
-	"github.com/shirou/gopsutil/v3/process"
+	//"github.com/shirou/gopsutil/v3/process"
 )
 
 var DefaultManager *Manager
@@ -21,7 +21,7 @@ func init() {
 		downloadBlip:  atomic.NewInt64(0),
 		uploadTotal:   atomic.NewInt64(0),
 		downloadTotal: atomic.NewInt64(0),
-		process:       &process.Process{Pid: int32(os.Getpid())},
+		//process:       &process.Process{Pid: int32(os.Getpid())},
 	}
 
 	go DefaultManager.handle()
@@ -35,8 +35,8 @@ type Manager struct {
 	downloadBlip  atomic.Int64
 	uploadTotal   atomic.Int64
 	downloadTotal atomic.Int64
-	process       *process.Process
-	memory        uint64
+	//process       *process.Process
+	memory uint64
 }
 
 func (m *Manager) Join(c Tracker) {
@@ -94,11 +94,11 @@ func (m *Manager) Snapshot() *Snapshot {
 }
 
 func (m *Manager) updateMemory() {
-	stat, err := m.process.MemoryInfo()
-	if err != nil {
-		return
-	}
-	m.memory = stat.RSS
+	//stat, err := m.process.MemoryInfo()
+	//if err != nil {
+	//	return
+	//}
+	//m.memory = stat.RSS
 }
 
 func (m *Manager) ResetStatistic() {

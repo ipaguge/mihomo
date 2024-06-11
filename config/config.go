@@ -101,53 +101,54 @@ type Controller struct {
 
 // NTP config
 type NTP struct {
-	Enable        bool   `yaml:"enable"`
-	Server        string `yaml:"server"`
-	Port          int    `yaml:"port"`
-	Interval      int    `yaml:"interval"`
-	DialerProxy   string `yaml:"dialer-proxy"`
-	WriteToSystem bool   `yaml:"write-to-system"`
+	Enable        bool   `yaml:"enable" json:"enable"`
+	Server        string `yaml:"server" json:"server"`
+	Port          int    `yaml:"port" json:"port"`
+	Interval      int    `yaml:"interval" json:"interval"`
+	DialerProxy   string `yaml:"dialer-proxy" json:"dialer-proxy"`
+	WriteToSystem bool   `yaml:"write-to-system" json:"write-to-system"`
 }
 
 // DNS config
 type DNS struct {
-	Enable                bool             `yaml:"enable"`
-	PreferH3              bool             `yaml:"prefer-h3"`
-	IPv6                  bool             `yaml:"ipv6"`
-	IPv6Timeout           uint             `yaml:"ipv6-timeout"`
-	UseSystemHosts        bool             `yaml:"use-system-hosts"`
-	NameServer            []dns.NameServer `yaml:"nameserver"`
-	Fallback              []dns.NameServer `yaml:"fallback"`
-	FallbackFilter        FallbackFilter   `yaml:"fallback-filter"`
-	Listen                string           `yaml:"listen"`
-	EnhancedMode          C.DNSMode        `yaml:"enhanced-mode"`
-	DefaultNameserver     []dns.NameServer `yaml:"default-nameserver"`
-	CacheAlgorithm        string           `yaml:"cache-algorithm"`
+	Enable                bool             `yaml:"enable" json:"enable"`
+	PreferH3              bool             `yaml:"prefer-h3" json:"prefer-h3"`
+	IPv6                  bool             `yaml:"ipv6" json:"ipv6"`
+	IPv6Timeout           uint             `yaml:"ipv6-timeout" json:"ipv6-timeout"`
+	UseSystemHosts        bool             `yaml:"use-system-hosts" json:"use-system-hosts"`
+	NameServer            []dns.NameServer `yaml:"nameserver" json:"nameserver"`
+	Fallback              []dns.NameServer `yaml:"fallback" json:"fallback"`
+	FallbackFilter        FallbackFilter   `yaml:"fallback-filter" json:"fallback-filter"`
+	Listen                string           `yaml:"listen" json:"listen"`
+	EnhancedMode          C.DNSMode        `yaml:"enhanced-mode" json:"enhanced-mode"`
+	DefaultNameserver     []dns.NameServer `yaml:"default-nameserver" json:"default-nameserver"`
+	CacheAlgorithm        string           `yaml:"cache-algorithm" json:"cache-algorithm"`
 	FakeIPRange           *fakeip.Pool
 	Hosts                 *trie.DomainTrie[resolver.HostValue]
 	NameServerPolicy      *orderedmap.OrderedMap[string, []dns.NameServer]
 	ProxyServerNameserver []dns.NameServer
+	CloudflareDns         RawCloudflareDns
 }
 
 // FallbackFilter config
 type FallbackFilter struct {
-	GeoIP     bool                   `yaml:"geoip"`
-	GeoIPCode string                 `yaml:"geoip-code"`
-	IPCIDR    []netip.Prefix         `yaml:"ipcidr"`
-	Domain    []string               `yaml:"domain"`
-	GeoSite   []router.DomainMatcher `yaml:"geosite"`
+	GeoIP     bool                   `yaml:"geoip" json:"geoip"`
+	GeoIPCode string                 `yaml:"geoip-code" json:"geoip-code"`
+	IPCIDR    []netip.Prefix         `yaml:"ipcidr" json:"ipcidr"`
+	Domain    []string               `yaml:"domain" json:"domain"`
+	GeoSite   []router.DomainMatcher `yaml:"geosite" json:"geosite"`
 }
 
 // Profile config
 type Profile struct {
-	StoreSelected bool `yaml:"store-selected"`
-	StoreFakeIP   bool `yaml:"store-fake-ip"`
+	StoreSelected bool `yaml:"store-selected" json:"store-selected"`
+	StoreFakeIP   bool `yaml:"store-fake-ip" json:"store-fake-ip"`
 }
 
 type TLS struct {
-	Certificate     string   `yaml:"certificate"`
-	PrivateKey      string   `yaml:"private-key"`
-	CustomTrustCert []string `yaml:"custom-certifactes"`
+	Certificate     string   `yaml:"certificate" json:"certificate"`
+	PrivateKey      string   `yaml:"private-key" json:"private-key"`
+	CustomTrustCert []string `yaml:"custom-certifactes" json:"custom-certifactes"`
 }
 
 // IPTables config
@@ -169,10 +170,10 @@ type Sniffer struct {
 
 // Experimental config
 type Experimental struct {
-	Fingerprints     []string `yaml:"fingerprints"`
-	QUICGoDisableGSO bool     `yaml:"quic-go-disable-gso"`
-	QUICGoDisableECN bool     `yaml:"quic-go-disable-ecn"`
-	IP4PEnable       bool     `yaml:"dialer-ip4p-convert"`
+	Fingerprints     []string `yaml:"fingerprints" json:"fingerprints"`
+	QUICGoDisableGSO bool     `yaml:"quic-go-disable-gso" json:"quic-go-disable-gso"`
+	QUICGoDisableECN bool     `yaml:"quic-go-disable-ecn" json:"quic-go-disable-ecn"`
+	IP4PEnable       bool     `yaml:"dialer-ip4p-convert" json:"dialer-ip4p-convert"`
 }
 
 // Config is mihomo config manager
@@ -196,13 +197,24 @@ type Config struct {
 	TLS           *TLS
 }
 
+type RawCloudflareDns struct {
+	Domain            map[string]any `yaml:"domain,omitempty" json:"domain,omitempty"`
+	INPort            int            `yaml:"in-port,omitempty" json:"in-port,omitempty"`
+	Port              int            `yaml:"port,omitempty" json:"port,omitempty"`
+	Enable            bool           `yaml:"enable,omitempty" json:"enable,omitempty"`
+	CloudflareIpsApi  string         `yaml:"cloudflare-ips-api,omitempty" json:"cloudflare-ips-api,omitempty"`
+	SpeedUrl          string         `yaml:"speed-url,omitempty" json:"speed-url,omitempty"`
+	DownloadSize      int            `yaml:"download-size,omitempty" json:"download-size,omitempty"`
+	DefaultNameserver []string       `yaml:"default-nameserver,omitempty" json:"default-nameserver,omitempty"`
+}
+
 type RawNTP struct {
-	Enable        bool   `yaml:"enable"`
-	Server        string `yaml:"server"`
-	ServerPort    int    `yaml:"server-port"`
-	Interval      int    `yaml:"interval"`
-	DialerProxy   string `yaml:"dialer-proxy"`
-	WriteToSystem bool   `yaml:"write-to-system"`
+	Enable        bool   `yaml:"enable" json:"enable"`
+	Server        string `yaml:"server" json:"server"`
+	ServerPort    int    `yaml:"server-port" json:"server-port"`
+	Interval      int    `yaml:"interval" json:"interval"`
+	DialerProxy   string `yaml:"dialer-proxy" json:"dialer-proxy"`
+	WriteToSystem bool   `yaml:"write-to-system" json:"write-to-system"`
 }
 
 type RawDNS struct {
@@ -223,6 +235,7 @@ type RawDNS struct {
 	CacheAlgorithm        string                              `yaml:"cache-algorithm" json:"cache-algorithm"`
 	NameServerPolicy      *orderedmap.OrderedMap[string, any] `yaml:"nameserver-policy" json:"nameserver-policy"`
 	ProxyServerNameserver []string                            `yaml:"proxy-server-nameserver" json:"proxy-server-nameserver"`
+	CloudflareDns         RawCloudflareDns                    `yaml:"cloudflare-dns" json:"cloudflare-dns"`
 }
 
 type RawFallbackFilter struct {
@@ -293,30 +306,30 @@ type RawConfig struct {
 	RedirPort               int               `yaml:"redir-port" json:"redir-port"`
 	TProxyPort              int               `yaml:"tproxy-port" json:"tproxy-port"`
 	MixedPort               int               `yaml:"mixed-port" json:"mixed-port"`
-	ShadowSocksConfig       string            `yaml:"ss-config"`
-	VmessConfig             string            `yaml:"vmess-config"`
-	InboundTfo              bool              `yaml:"inbound-tfo"`
-	InboundMPTCP            bool              `yaml:"inbound-mptcp"`
+	ShadowSocksConfig       string            `yaml:"ss-config" json:"ss-config"`
+	VmessConfig             string            `yaml:"vmess-config" json:"vmess-config"`
+	InboundTfo              bool              `yaml:"inbound-tfo" json:"inbound-tfo"`
+	InboundMPTCP            bool              `yaml:"inbound-mptcp" json:"inbound-mptcp"`
 	Authentication          []string          `yaml:"authentication" json:"authentication"`
-	SkipAuthPrefixes        []netip.Prefix    `yaml:"skip-auth-prefixes"`
-	LanAllowedIPs           []netip.Prefix    `yaml:"lan-allowed-ips"`
-	LanDisAllowedIPs        []netip.Prefix    `yaml:"lan-disallowed-ips"`
+	SkipAuthPrefixes        []netip.Prefix    `yaml:"skip-auth-prefixes" json:"skip-auth-prefixes"`
+	LanAllowedIPs           []netip.Prefix    `yaml:"lan-allowed-ips" json:"lan-allowed-i-ps"`
+	LanDisAllowedIPs        []netip.Prefix    `yaml:"lan-disallowed-ips" json:"lan-dis-allowed-i-ps"`
 	AllowLan                bool              `yaml:"allow-lan" json:"allow-lan"`
 	BindAddress             string            `yaml:"bind-address" json:"bind-address"`
 	Mode                    T.TunnelMode      `yaml:"mode" json:"mode"`
 	UnifiedDelay            bool              `yaml:"unified-delay" json:"unified-delay"`
 	LogLevel                log.LogLevel      `yaml:"log-level" json:"log-level"`
 	IPv6                    bool              `yaml:"ipv6" json:"ipv6"`
-	ExternalController      string            `yaml:"external-controller"`
-	ExternalControllerUnix  string            `yaml:"external-controller-unix"`
-	ExternalControllerTLS   string            `yaml:"external-controller-tls"`
-	ExternalUI              string            `yaml:"external-ui"`
+	ExternalController      string            `yaml:"external-controller" json:"external-controller"`
+	ExternalControllerUnix  string            `yaml:"external-controller-unix" json:"external-controller-unix"`
+	ExternalControllerTLS   string            `yaml:"external-controller-tls" json:"external-controller-tls"`
+	ExternalUI              string            `yaml:"external-ui" json:"external-ui"`
 	ExternalUIURL           string            `yaml:"external-ui-url" json:"external-ui-url"`
 	ExternalUIName          string            `yaml:"external-ui-name" json:"external-ui-name"`
-	Secret                  string            `yaml:"secret"`
-	Interface               string            `yaml:"interface-name"`
-	RoutingMark             int               `yaml:"routing-mark"`
-	Tunnels                 []LC.Tunnel       `yaml:"tunnels"`
+	Secret                  string            `yaml:"secret" json:"secret"`
+	Interface               string            `yaml:"interface-name" json:"interface-name"`
+	RoutingMark             int               `yaml:"routing-mark" json:"routing-mark"`
+	Tunnels                 []LC.Tunnel       `yaml:"tunnels" json:"tunnels"`
 	GeoAutoUpdate           bool              `yaml:"geo-auto-update" json:"geo-auto-update"`
 	GeoUpdateInterval       int               `yaml:"geo-update-interval" json:"geo-update-interval"`
 	GeodataMode             bool              `yaml:"geodata-mode" json:"geodata-mode"`
@@ -324,31 +337,32 @@ type RawConfig struct {
 	GeositeMatcher          string            `yaml:"geosite-matcher" json:"geosite-matcher"`
 	TCPConcurrent           bool              `yaml:"tcp-concurrent" json:"tcp-concurrent"`
 	FindProcessMode         P.FindProcessMode `yaml:"find-process-mode" json:"find-process-mode"`
-	GlobalClientFingerprint string            `yaml:"global-client-fingerprint"`
-	GlobalUA                string            `yaml:"global-ua"`
-	KeepAliveInterval       int               `yaml:"keep-alive-interval"`
+	GlobalClientFingerprint string            `yaml:"global-client-fingerprint" json:"global-client-fingerprint"`
+	GlobalUA                string            `yaml:"global-ua" json:"global-ua"`
+	KeepAliveInterval       int               `yaml:"keep-alive-interval" json:"keep-alive-interval"`
 
-	Sniffer       RawSniffer                `yaml:"sniffer" json:"sniffer"`
-	ProxyProvider map[string]map[string]any `yaml:"proxy-providers"`
-	RuleProvider  map[string]map[string]any `yaml:"rule-providers"`
-	Hosts         map[string]any            `yaml:"hosts" json:"hosts"`
-	NTP           RawNTP                    `yaml:"ntp" json:"ntp"`
-	DNS           RawDNS                    `yaml:"dns" json:"dns"`
-	Tun           RawTun                    `yaml:"tun"`
-	TuicServer    RawTuicServer             `yaml:"tuic-server"`
-	EBpf          EBpf                      `yaml:"ebpf"`
-	IPTables      IPTables                  `yaml:"iptables"`
-	Experimental  Experimental              `yaml:"experimental"`
-	Profile       Profile                   `yaml:"profile"`
-	GeoXUrl       GeoXUrl                   `yaml:"geox-url"`
-	Proxy         []map[string]any          `yaml:"proxies"`
-	ProxyGroup    []map[string]any          `yaml:"proxy-groups"`
-	Rule          []string                  `yaml:"rules"`
-	SubRules      map[string][]string       `yaml:"sub-rules"`
-	RawTLS        TLS                       `yaml:"tls"`
-	Listeners     []map[string]any          `yaml:"listeners"`
-
-	ClashForAndroid RawClashForAndroid `yaml:"clash-for-android" json:"clash-for-android"`
+	Sniffer         RawSniffer                `yaml:"sniffer" json:"sniffer"`
+	ProxyProvider   map[string]map[string]any `yaml:"proxy-providers" json:"proxy-provider"`
+	RuleProvider    map[string]map[string]any `yaml:"rule-providers" json:"rule-provider"`
+	Hosts           map[string]any            `yaml:"hosts" json:"hosts"`
+	NTP             RawNTP                    `yaml:"ntp" json:"ntp"`
+	DNS             RawDNS                    `yaml:"dns" json:"dns"`
+	Tun             RawTun                    `yaml:"tun" json:"tun"`
+	TuicServer      RawTuicServer             `yaml:"tuic-server" json:"tuic-server"`
+	EBpf            EBpf                      `yaml:"ebpf" json:"ebpf"`
+	IPTables        IPTables                  `yaml:"iptables" json:"iptables"`
+	Experimental    Experimental              `yaml:"experimental" json:"experimental"`
+	Profile         Profile                   `yaml:"profile" json:"profile"`
+	GeoXUrl         GeoXUrl                   `yaml:"geox-url" json:"geox-url"`
+	Proxy           []map[string]any          `yaml:"proxies" json:"proxies"`
+	ProxyGroup      []map[string]any          `yaml:"proxy-groups" json:"proxy-group"`
+	Rule            []string                  `yaml:"rules" json:"rule"`
+	SubRules        map[string][]string       `yaml:"sub-rules" json:"sub-rules"`
+	RawTLS          TLS                       `yaml:"tls" json:"tls"`
+	Listeners       []map[string]any          `yaml:"listeners" json:"listeners"`
+	CustomizeRules  map[string][]string       `yaml:"customize-rules,omitempty" json:"customize-rules,omitempty"`
+	RuleType        string                    `yaml:"rule-type,omitempty" json:"rule-type,omitempty"`
+	ClashForAndroid RawClashForAndroid        `yaml:"clash-for-android" json:"clash-for-android"`
 }
 
 type GeoXUrl struct {
@@ -459,13 +473,15 @@ func UnmarshalRawConfig(buf []byte) (*RawConfig, error) {
 			Interval:      30,
 		},
 		DNS: RawDNS{
-			Enable:         false,
-			IPv6:           false,
-			UseHosts:       true,
-			UseSystemHosts: true,
-			IPv6Timeout:    100,
-			EnhancedMode:   C.DNSMapping,
-			FakeIPRange:    "198.18.0.1/16",
+			Enable:       false,
+			IPv6:         false,
+			UseHosts:     true,
+			IPv6Timeout:  100,
+			EnhancedMode: C.DNSMapping,
+			FakeIPRange:  "198.18.0.1/16",
+			CloudflareDns: RawCloudflareDns{
+				Enable: false,
+			},
 			FallbackFilter: RawFallbackFilter{
 				GeoIP:     true,
 				GeoIPCode: "CN",
@@ -517,6 +533,27 @@ func UnmarshalRawConfig(buf []byte) (*RawConfig, error) {
 
 	if err := yaml.Unmarshal(buf, rawCfg); err != nil {
 		return nil, err
+	}
+	//rawCfg.Profile.StoreFakeIP = false
+
+	if rawCfg.CustomizeRules != nil && len(rawCfg.CustomizeRules) > 0 {
+		if rawCfg.RuleType == "bypass_overseas_rules" {
+			if _, ok := rawCfg.CustomizeRules["bypass_overseas_rules"]; ok {
+				rawCfg.Rule = append(rawCfg.Rule, rawCfg.CustomizeRules["bypass_overseas_rules"]...)
+			}
+		} else if rawCfg.RuleType == "bypass_cn_rules" {
+			if _, ok := rawCfg.CustomizeRules["bypass_cn_rules"]; ok {
+				rawCfg.Rule = append(rawCfg.Rule, rawCfg.CustomizeRules["bypass_cn_rules"]...)
+			}
+		} else {
+			if _, ok := rawCfg.CustomizeRules["default_rules"]; ok {
+				rawCfg.Rule = append(rawCfg.Rule, rawCfg.CustomizeRules["default_rules"]...)
+			}
+		}
+
+		if _, ok := rawCfg.CustomizeRules["dns_rules"]; ok {
+			rawCfg.Rule = append(rawCfg.CustomizeRules["dns_rules"], rawCfg.Rule...)
+		}
 	}
 
 	return rawCfg, nil
@@ -726,7 +763,10 @@ func parseProxies(cfg *RawConfig) (proxies map[string]C.Proxy, providersMap map[
 	proxies["REJECT-DROP"] = adapter.NewProxy(outbound.NewRejectDrop())
 	proxies["COMPATIBLE"] = adapter.NewProxy(outbound.NewCompatible())
 	proxies["PASS"] = adapter.NewProxy(outbound.NewPass())
-	proxyList = append(proxyList, "DIRECT", "REJECT")
+	proxies["DNS"] = adapter.NewProxy(outbound.NewDNS())
+	proxyList = append(proxyList, "DIRECT", "REJECT", "DNS")
+	AllProxies = append(AllProxies, "DNS")
+	proxiesList.PushBack(proxies["DNS"])
 
 	// parse proxy
 	for idx, mapping := range proxiesConfig {
@@ -1296,6 +1336,7 @@ func parseDNS(rawCfg *RawConfig, hosts *trie.DomainTrie[resolver.HostValue], rul
 		IPv6:           cfg.IPv6,
 		UseSystemHosts: cfg.UseSystemHosts,
 		EnhancedMode:   cfg.EnhancedMode,
+		CloudflareDns:  cfg.CloudflareDns,
 		FallbackFilter: FallbackFilter{
 			IPCIDR:  []netip.Prefix{},
 			GeoSite: []router.DomainMatcher{},
