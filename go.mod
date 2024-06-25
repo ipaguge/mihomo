@@ -41,7 +41,7 @@ require (
 	github.com/sagernet/sing-shadowtls v0.1.4
 	github.com/sagernet/wireguard-go v0.0.0-20231209092712-9a439356a62e
 	github.com/samber/lo v1.39.0
-	github.com/shirou/gopsutil/v3 v3.24.4
+	github.com/shirou/gopsutil/v3 v3.24.5
 	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.9.0
 	github.com/wk8/go-ordered-map/v2 v2.1.8
